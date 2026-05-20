@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KTEQ-FM 91.3 — Clock & Library Calculator</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --kteq-yellow:#FCEB00;
+  --bg:#f0f0f0;
+  --surface:#fff;
+  --border:#d0d0d0;
+  --border-light:#e4e4e4;
+  --text:#1a1a1a;
+  --muted:#777;
+  --radius:5px;
+  --sidebar:300px;
+  --topbar:38px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;background:var(--bg);color:var(--text)}
+
+/* ── Layout ── */
+.topbar{height:var(--topbar);background:#111;color:#fff;display:flex;align-items:center;gap:10px;padding:0 16px;position:fixed;top:0;left:0;right:0;z-index:100}
+.topbar .logo{background:var(--kteq-yellow);color:#111;font-weight:700;font-size:10px;padding:2px 7px;border-radius:2px;letter-spacing:.06em;white-space:nowrap}
+.topbar h1{font-size:13px;font-weight:400;letter-spacing:.02em}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.body{display:flex;height:calc(100vh - var(--topbar));margin-top:var(--topbar)}
+.main{flex:1;overflow:auto;padding:14px 16px}
+.sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sidebar-header{padding:10px 14px 8px;border-bottom:1px solid var(--border-light);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);flex-shrink:0}
+.sidebar-body{flex:1;overflow-y:auto;padding:12px 14px}
+.sidebar-footer{padding:10px 14px;border-top:1px solid var(--border-light);flex-shrink:0}
+
+/* ── Settings bar ── */
+.settings-bar{display:flex;gap:0;align-items:stretch;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;flex-wrap:wrap}
+.setting{display:flex;align-items:center;gap:6px;padding:6px 12px;border-right:1px solid var(--border-light)}
+.setting:last-child{border-right:none}
+.setting label{font-size:11px;color:var(--muted);white-space:nowrap}
+.setting input[type=number],.setting input[type=text]{width:52px;padding:3px 5px;border:1px solid var(--border);border-radius:3px;font-size:11px;text-align:center;background:#fafafa}
+.setting input[type=number].wide{width:68px}
+
+/* ── Clock table ── */
+.clock-wrap{overflow-x:auto;margin-bottom:12px}
+table.clock{border-collapse:collapse;font-size:11px;white-space:nowrap}
+table.clock th,table.clock td{border:1px solid var(--border-light)}
+table.clock th{background:#1a1a1a;color:#fff;font-size:10px;font-weight:500;text-align:center;vertical-align:middle;cursor:default;user-select:none}
+table.clock th.slot-h{background:#333;width:28px;min-width:28px;cursor:default}
+table.clock th.daypart{cursor:pointer;transition:background .15s;min-width:54px;width:54px;padding:0}
+table.clock th.daypart:hover{background:#2a2a2a}
+table.clock th.daypart.selected{background:#003d80;outline:2px solid var(--kteq-yellow);outline-offset:-2px}
+table.clock th.daypart .dp-time{display:block;padding:4px 4px 2px;font-size:10px;font-weight:600;letter-spacing:.02em}
+table.clock th.daypart .dp-name{display:block;padding:2px 4px 4px;font-size:9px;font-weight:400;color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:54px}
+table.clock th.daypart.selected .dp-name{color:#FCEB00}
+table.clock td.slot-n{background:#e8e8e8;color:#666;text-align:center;font-size:10px;font-weight:600;border-right:2px solid #bbb;padding:0 4px;width:28px}
+table.clock td.cell{padding:0;border:1px solid rgba(0,0,0,.1)}
+table.clock td.cell input{
+  display:block;width:54px;height:26px;border:none;background:transparent;
+  text-align:center;font-size:11px;font-weight:700;padding:0;margin:0;
+  outline:none;cursor:pointer;text-transform:uppercase;color:inherit;letter-spacing:.03em;
+  font-family:inherit;
+}
+table.clock td.cell input:focus{outline:2px solid var(--kteq-yellow);outline-offset:-1px;z-index:1;position:relative}
+/* Save-clock row — rendered as tfoot inside the clock table */
+table.clock tfoot td.save-btn-cell{padding:0;border:1px solid var(--border-light);background:var(--bg)}
+table.clock tfoot td.save-btn-cell button{
+  display:block;width:100%;height:22px;font-size:10px;padding:0;
+  background:var(--surface);border:none;cursor:pointer;color:var(--muted);
+  transition:background .12s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+table.clock tfoot td.save-btn-cell button:hover{background:#f0f0f0;color:var(--text)}
+table.clock tfoot td.save-btn-cell.selected button{background:#003d80;color:var(--kteq-yellow)}
+table.clock tfoot td.slot-n-foot{background:#e0e0e0;border:1px solid var(--border-light)}
+
+/* ── Totals table ── */
+table.totals{border-collapse:collapse;width:100%;font-size:11px}
+table.totals th{background:#222;color:#fff;padding:5px 8px;font-size:10px;font-weight:500;text-align:left;white-space:nowrap}
+table.totals th.r{text-align:right}
+table.totals td{padding:5px 8px;border-bottom:1px solid var(--border-light);vertical-align:middle}
+table.totals td.r{text-align:right;font-variant-numeric:tabular-nums}
+table.totals input.spt{width:54px;padding:3px 5px;border:1px solid var(--border);border-radius:3px;font-size:11px;text-align:center}
+table.totals tr.foot-row td{background:#f0f0f0;font-weight:600}
+.cat-pill{display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;min-width:30px;padding:2px 7px;border-radius:3px;letter-spacing:.04em}
+
+/* ── Sidebar clock picker ── */
+.sb-mode-label{font-size:11px;font-weight:500;color:var(--text);margin-bottom:10px;line-height:1.4}
+.sb-mode-label span{color:var(--muted)}
+.clock-list-item{display:flex;align-items:center;gap:6px;padding:7px 8px;border:1px solid var(--border-light);border-radius:var(--radius);margin-bottom:5px;cursor:pointer;background:#fafafa;transition:background .12s}
+.clock-list-item:hover{background:#f0f0f0}
+.clock-list-item.active{border-color:#003d80;background:#e8f0fb}
+.clock-list-item .cli-count{font-size:10px;font-weight:700;color:#fff;background:#555;border-radius:10px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0 4px;flex-shrink:0}
+.clock-list-item.active .cli-count{background:#003d80}
+.clock-list-item .cli-name{flex:1;font-size:11px;font-weight:500}
+.clock-list-item .cli-meta{font-size:10px;color:var(--muted)}
+.clock-list-item .cli-del{font-size:11px;color:#bbb;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:3px;flex-shrink:0}
+.clock-list-item .cli-del:hover{color:#c00;background:#fee}
+.new-clock-btn{width:100%;padding:7px;border:1px dashed var(--border);border-radius:var(--radius);background:none;font-size:11px;color:var(--muted);cursor:pointer;text-align:center;margin-bottom:8px}
+.new-clock-btn:hover{background:#f5f5f5;color:var(--text)}
+.sb-section{margin-bottom:14px}
+.sb-section-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:7px}
+
+/* Save-clock prompt */
+.save-prompt{background:#fafafa;border:1px solid var(--border);border-radius:var(--radius);padding:10px;margin-top:10px}
+.save-prompt h4{font-size:11px;font-weight:600;margin-bottom:8px}
+.save-prompt .sp-row{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.save-prompt input[type=text]{flex:1;padding:4px 7px;border:1px solid var(--border);border-radius:3px;font-size:11px}
+
+/* Buttons */
+.btn{padding:4px 10px;border:1px solid var(--border);border-radius:3px;background:var(--surface);font-size:11px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{background:#f0f0f0}
+.btn.primary{background:#111;color:#fff;border-color:#111}
+.btn.primary:hover{background:#333}
+.btn.yellow{background:var(--kteq-yellow);color:#111;border-color:#d4c200}
+.btn.yellow:hover{background:#e8d800}
+.btn.sm{padding:3px 7px;font-size:10px}
+.btn.danger{background:#fff;color:#c00;border-color:#fcc}
+.btn.danger:hover{background:#fee}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap}
+
+/* Legend */
+.legend-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.legend-item{display:flex;align-items:center;gap:5px}
+.legend-swatch{width:20px;height:14px;border-radius:2px;flex-shrink:0}
+
+/* Tab bar */
+.tab-bar{display:flex;border-bottom:1px solid var(--border);margin-bottom:14px}
+.tab{padding:6px 14px;font-size:11px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--muted)}
+.tab.active{border-bottom-color:#111;color:var(--text)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+/* Specialty */
+.sp-blocks-wrap{overflow-x:auto;margin-bottom:12px}
+table.sp-table{border-collapse:collapse;font-size:11px;white-space:nowrap}
+table.sp-table th,table.sp-table td{border:1px solid var(--border-light)}
+table.sp-table th{background:#1a1a1a;color:#fff;font-size:10px;font-weight:500;text-align:center;vertical-align:middle;cursor:default;user-select:none}
+table.sp-table th.sp-slot-h{background:#333;width:28px;min-width:28px}
+table.sp-table th.sp-col{cursor:pointer;transition:background .15s;min-width:80px;width:80px;padding:0}
+table.sp-table th.sp-col:hover{background:#2a2a2a}
+table.sp-table th.sp-col.selected{background:#003d80;outline:2px solid var(--kteq-yellow);outline-offset:-2px}
+table.sp-table th.sp-col .sp-col-time{display:block;padding:4px 4px 2px;font-size:10px;font-weight:600}
+table.sp-table th.sp-col .sp-col-name{display:block;padding:2px 4px 4px;font-size:9px;font-weight:400;color:#aaa;max-width:80px;overflow:hidden;text-overflow:ellipsis}
+table.sp-table th.sp-col.selected .sp-col-name{color:#FCEB00}
+table.sp-table td.sp-slot-n{background:#e8e8e8;color:#666;text-align:center;font-size:10px;font-weight:600;border-right:2px solid #bbb;padding:0 4px;width:28px}
+table.sp-table td.sp-cell{padding:0;border:1px solid rgba(0,0,0,.1)}
+table.sp-table td.sp-cell select{
+  display:block;width:80px;height:26px;border:none;background:transparent;
+  font-size:11px;font-weight:700;padding:0 4px;outline:none;cursor:pointer;
+  color:inherit;font-family:inherit;-webkit-appearance:none;appearance:none;text-align:center;
+}
+table.sp-table td.sp-cell select:focus{outline:2px solid var(--kteq-yellow);outline-offset:-1px;z-index:1;position:relative}
+table.sp-table tfoot td.sp-save-cell{padding:0;border:1px solid var(--border-light);background:var(--bg)}
+table.sp-table tfoot td.sp-save-cell button{
+  display:block;width:100%;height:22px;font-size:10px;padding:0;
+  background:var(--surface);border:none;cursor:pointer;color:var(--muted);transition:background .12s;
+}
+table.sp-table tfoot td.sp-save-cell button:hover{background:#f0f0f0;color:var(--text)}
+table.sp-table tfoot td.sp-save-cell.selected button{background:#003d80;color:var(--kteq-yellow)}
+.sp-field{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.sp-field label{flex:1;font-size:11px;color:var(--muted)}
+.sp-field input{width:58px;padding:3px 5px;border:1px solid var(--border);border-radius:3px;font-size:11px;text-align:center}
+
+/* Toast */
+.toast{position:fixed;bottom:16px;right:16px;background:#111;color:#fff;padding:7px 13px;border-radius:4px;font-size:11px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9999}
+.toast.show{opacity:1}
+
+/* Summary stats */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.stat{background:#f5f5f5;border-radius:4px;padding:7px 9px}
+.stat .sv{font-size:16px;font-weight:600}
+.stat .sl{font-size:10px;color:var(--muted);margin-top:1px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">KTEQ 91.3</span>
+  <h1>Clock &amp; Library Calculator</h1>
+  <div class="topbar-right">
+    <button class="btn sm" onclick="exportJSON()">Export JSON</button>
+    <label class="btn sm" style="cursor:pointer">Import JSON<input type="file" accept=".json" style="display:none" onchange="importJSON(event)"></label>
+  </div>
+</div>
+
+<div class="body">
+<div class="main">
+
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchTab('clock')">Schedule</div>
+    <div class="tab" onclick="switchTab('specialty')">Specialty calculator</div>
+  </div>
+
+  <!-- ── CLOCK TAB ── -->
+  <div id="tab-clock" class="tab-panel active">
+    <div class="settings-bar">
+      <div class="setting"><label>Start time</label>
+        <select id="startHour" onchange="renderSchedule()" style="padding:3px 5px;border:1px solid var(--border);border-radius:3px;font-size:11px;background:#fafafa">
+        </select>
+      </div>
+      <div class="setting"><label>Dayparts</label><input type="number" id="numCols" value="13" min="1" max="24" step="1" oninput="onDimsChange()"></div>
+      <div class="setting"><label>Slots/hour</label><input type="number" id="numRows" value="16" min="1" max="30" step="1" oninput="onDimsChange()"></div>
+      <div class="setting"><label>Days/week</label><input type="number" id="daysWk" value="5" min="1" max="7" step="1" oninput="recalc()"></div>
+      <div class="setting"><label>Avg song (min)</label><input type="number" id="avgLen" value="3.5" min="1" max="10" step="0.5" oninput="recalc()"></div>
+    </div>
+
+    <div class="clock-wrap" id="clockWrap"></div>
+
+    <div style="margin-bottom:6px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Category totals &amp; track requirements</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;overflow-x:auto">
+      <table class="totals">
+        <thead><tr>
+          <th>Category</th>
+          <th class="r">Spins/day</th>
+          <th class="r">S/W</th>
+          <th class="r">Spins/Tr/Wk</th>
+          <th class="r">Total tracks</th>
+          <th class="r">Library hrs</th>
+        </tr></thead>
+        <tbody id="totalsBody"></tbody>
+        <tfoot id="totalsFoot"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── SPECIALTY TAB ── -->
+  <div id="tab-specialty" class="tab-panel">
+    <div class="settings-bar">
+      <div class="setting"><label>Blocks</label><input type="number" id="spNumCols" value="4" min="1" max="20" step="1" oninput="onSpDimsChange()"></div>
+      <div class="setting"><label>Slots/block</label><input type="number" id="spNumRows" value="12" min="1" max="30" step="1" oninput="onSpDimsChange()"></div>
+      <div class="setting"><label>Hrs/block</label><input type="number" id="spHrsBlock" value="3" min="0.5" max="12" step="0.5" oninput="recalcSp()"></div>
+      <div class="setting"><label>Blocks/week</label><input type="number" id="spBlocksWk" value="2" min="1" max="20" step="1" oninput="recalcSp()"></div>
+      <div class="setting"><label>Days/week</label><input type="number" id="spDaysWk" value="5" min="1" max="7" oninput="recalcSp()"></div>
+      <div class="setting"><label>Avg song (min)</label><input type="number" id="spAvgLen" value="3.5" min="1" max="10" step="0.5" oninput="recalcSp()"></div>
+    </div>
+    <div class="sp-blocks-wrap" id="spBlocksWrap"></div>
+    <div style="margin-bottom:6px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">SP pool totals &amp; track requirements</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;overflow-x:auto">
+      <table class="totals">
+        <thead><tr>
+          <th>Pool</th>
+          <th class="r">Spins/block</th>
+          <th class="r">Spins/wk</th>
+          <th class="r">Spins/Tr/Wk</th>
+          <th class="r">Total tracks</th>
+          <th class="r">Library hrs</th>
+        </tr></thead>
+        <tbody id="spTotalsBody"></tbody>
+        <tfoot id="spTotalsFoot"></tfoot>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── SIDEBAR ── -->
+<div class="sidebar">
+  <div class="sidebar-header" id="sidebarTitle">Clocks</div>
+  <div class="sidebar-body" id="sidebarBody"></div>
+  <div class="sidebar-footer" id="sidebarFooter"></div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// COLOR PALETTE
+// ════════════════════════════════════════════════════════════════
+const CAT_COLORS = {
+  'G1':{bg:'#F1C232',fg:'#fff'}, 'G2':{bg:'#BF9002',fg:'#fff'}, 'G3':{bg:'#7E6000',fg:'#fff'},
+  'S1':{bg:'#999999',fg:'#fff'}, 'S2':{bg:'#666666',fg:'#fff'}, 'S3':{bg:'#434343',fg:'#fff'},
+  'B1':{bg:'#CE6D06',fg:'#fff'}, 'B2':{bg:'#B45F05',fg:'#fff'}, 'B3':{bg:'#8A4800',fg:'#fff'},
+  'C1':{bg:'#E0006C',fg:'#fff'}, 'C2':{bg:'#B8005A',fg:'#fff'}, 'C3':{bg:'#8A0042',fg:'#fff'},
+  'R1':{bg:'#0C5298',fg:'#fff'}, 'R2':{bg:'#0A3D72',fg:'#fff'}, 'R3':{bg:'#06254A',fg:'#fff'},
+  'N1':{bg:'#2E7D32',fg:'#fff'}, 'N2':{bg:'#1B5E20',fg:'#fff'},
+};
+function catC(code){ return code ? (CAT_COLORS[code.toUpperCase()]||null) : null; }
+function applyCell(td, inp, code){
+  const c = catC(code);
+  td.style.background = c ? c.bg : (code ? '#ddd' : '#fff');
+  inp.style.color      = c ? c.fg : '#333';
+}
+
+// ════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════
+// A "clock" = { id, name, slots: string[] }   (one column of category codes)
+// A "schedule" = the grid: scheduleColumns[colIdx] = clockId (or null = unassigned)
+// grid[row][col] is edited live; when a column is assigned a clock it loads that clock's slots
+
+let clocks = [];            // saved clock library
+let scheduleColumns = [];   // array of { clockId|null, label }  length = numCols
+let grid = [];              // grid[row][col] = string
+let spinsPerTrack = {};
+let selectedCol = null;     // currently selected column index (for sidebar picker)
+
+// ════════════════════════════════════════════════════════════════
+// DEFAULTS
+// ════════════════════════════════════════════════════════════════
+const DEFAULT_SLOTS = [
+  ['S1','G1','B1','C1','C1','C1','C1','C1','C1','C1','G1','S1','G2'],
+  ['S2','B1','S1','B1','G2','B2','C2','B1','R2','B1','S1','S2','C3'],
+  ['G1','S1','B2','S1','B1','G2','C3','R1','C2','S1','B2','G1','S2'],
+  ['S1','G1','B1','S2','S1','B1','C2','B2','R1','G2','B1','S1','G3'],
+  ['G2','B1','G1','B2','S2','S1','C1','C2','B1','R1','G1','G2','B3'],
+  ['G1','B2','R1','R1','B2','S2','C2','B1','R2','C2','R1','G1','C2'],
+  ['S1','S1','B1','R2','R1','B2','C3','R1','B2','S2','B1','S1','R2'],
+  ['S2','B1','S1','G1','R2','R1','C2','R2','R1','B2','S2','S2','G3'],
+  ['G2','B2','C1','C1','C1','C1','C1','C1','C1','C1','C1','G2','C3'],
+  ['S1','G1','B1','B1','G2','R2','C2','B2','B1','G2','B1','S1','S3'],
+  ['S2','B1','G1','S1','B1','G2','C3','B1','R2','R1','G1','S2','G2'],
+  ['G2','S1','R1','S2','S1','B1','C2','R1','C2','S1','R1','G2','R2'],
+  ['S1','G1','B1','B2','S2','S1','C1','C2','R1','G2','B1','S1','C2'],
+  ['S2','B1','S1','R1','B2','S2','C2','B1','B2','S2','S1','S2','B3'],
+  ['G1','B2','B2','R2','R1','B2','C3','R1','R2','B1','G1','G1','S2'],
+  ['G2','S1','C1','C1','C1','C1','C1','C1','C1','C1','C1','G2','C3'],
+];
+
+function initState(){
+  const saved = localStorage.getItem('kteq_v3');
+  if(saved){
+    try{
+      const d = JSON.parse(saved);
+      clocks = d.clocks||[];
+      grid = d.grid||[];
+      scheduleColumns = d.scheduleColumns||[];
+      spinsPerTrack = d.spinsPerTrack||{};
+      spClocks = d.spClocks||[];
+      spGrid = d.spGrid||[];
+      spScheduleColumns = d.spScheduleColumns||[];
+      spSpt = d.spSpt||{SP1:2,SP2:1,SP3:1};
+      if(d.settings){
+        const s=d.settings;
+        if(s.numCols) document.getElementById('numCols').value=s.numCols;
+        if(s.numRows) document.getElementById('numRows').value=s.numRows;
+        if(s.daysWk)  document.getElementById('daysWk').value=s.daysWk;
+        if(s.avgLen)  document.getElementById('avgLen').value=s.avgLen;
+        if(s.startHour!==undefined) document.getElementById('startHour').value=s.startHour;
+      }
+      if(d.spSettings){
+        const s=d.spSettings;
+        if(s.spNumCols) document.getElementById('spNumCols').value=s.spNumCols;
+        if(s.spNumRows) document.getElementById('spNumRows').value=s.spNumRows;
+        if(s.spHrsBlock) document.getElementById('spHrsBlock').value=s.spHrsBlock;
+        if(s.spBlocksWk) document.getElementById('spBlocksWk').value=s.spBlocksWk;
+        if(s.spDaysWk) document.getElementById('spDaysWk').value=s.spDaysWk;
+        if(s.spAvgLen) document.getElementById('spAvgLen').value=s.spAvgLen;
+      }
+      ensureGridSize(); ensureSpGridSize();
+      return;
+    }catch(e){}
+  }
+  // Fresh start
+  const nCols=13, nRows=16;
+  grid = Array.from({length:nRows},(_,r)=>
+    Array.from({length:nCols},(_,c)=> DEFAULT_SLOTS[r]?.[c]||''));
+  scheduleColumns = Array.from({length:nCols},()=>({clockId:null}));
+  spGrid = Array.from({length:12},()=>Array(4).fill(''));
+  spScheduleColumns = Array.from({length:4},()=>({clockId:null}));
+}
+
+function ensureGridSize(){
+  const nRows=getNumRows(), nCols=getNumCols();
+  while(grid.length < nRows) grid.push(Array(nCols).fill(''));
+  grid.forEach(row=>{ while(row.length<nCols) row.push(''); });
+  while(scheduleColumns.length < nCols) scheduleColumns.push({clockId:null});
+}
+
+function persist(){
+  localStorage.setItem('kteq_v3', JSON.stringify({
+    clocks, grid, scheduleColumns, spinsPerTrack,
+    settings:{
+      numCols:document.getElementById('numCols').value,
+      numRows:document.getElementById('numRows').value,
+      daysWk:document.getElementById('daysWk').value,
+      avgLen:document.getElementById('avgLen').value,
+      startHour:document.getElementById('startHour').value,
+    }
+  }));
+}
+
+function getNumCols(){ return Math.max(1,parseInt(document.getElementById('numCols').value)||13); }
+function getNumRows(){ return Math.max(1,parseInt(document.getElementById('numRows').value)||16); }
+
+// ════════════════════════════════════════════════════════════════
+// TIME LABELS
+// ════════════════════════════════════════════════════════════════
+function buildStartHourSelect(){
+  const sel = document.getElementById('startHour');
+  for(let h=0;h<24;h++){
+    const opt=document.createElement('option');
+    opt.value=h;
+    const ampm=h<12?'AM':'PM';
+    const disp=h===0?'12AM':h<12?`${h}AM`:h===12?'12PM':`${h-12}PM`;
+    opt.textContent=disp;
+    sel.appendChild(opt);
+  }
+  sel.value=6; // default 6AM
+}
+
+function timeLabel(colIdx){
+  const start=parseInt(document.getElementById('startHour').value)||6;
+  const h=(start+colIdx)%24;
+  if(h===0) return '12AM';
+  if(h<12) return `${h}AM`;
+  if(h===12) return '12PM';
+  return `${h-12}PM`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// CLOCK LIBRARY
+// ════════════════════════════════════════════════════════════════
+function clockUsageCount(id){
+  return scheduleColumns.slice(0,getNumCols()).filter(sc=>sc.clockId===id).length;
+}
+
+function colClockName(colIdx){
+  const sc = scheduleColumns[colIdx];
+  if(!sc||!sc.clockId) return null;
+  const ck = clocks.find(c=>c.id===sc.clockId);
+  return ck ? ck.name : null;
+}
+
+function saveClockFromCol(colIdx, name, overwriteId){
+  const nRows=getNumRows();
+  const slots = Array.from({length:nRows},(_,r)=>grid[r]?.[colIdx]||'');
+  if(overwriteId){
+    const ck=clocks.find(c=>c.id===overwriteId);
+    if(ck){ ck.name=name; ck.slots=slots; }
+  } else {
+    const id = 'ck_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    clocks.push({id, name, slots});
+    scheduleColumns[colIdx] = {clockId:id};
+  }
+  persist();
+  renderSchedule();
+  renderSidebar();
+}
+
+function applyClockToCol(clockId, colIdx){
+  const ck = clocks.find(c=>c.id===clockId);
+  if(!ck) return;
+  const nRows=getNumRows();
+  ck.slots.forEach((v,r)=>{ if(r<nRows) grid[r][colIdx]=v; });
+  scheduleColumns[colIdx]={clockId};
+  // update DOM inputs for this column
+  for(let r=0;r<nRows;r++){
+    const inp=document.querySelector(`input[data-r="${r}"][data-c="${colIdx}"]`);
+    if(inp){
+      inp.value=grid[r][colIdx];
+      applyCell(inp.parentElement,inp,grid[r][colIdx]);
+    }
+  }
+  updateColName(colIdx);
+  recalc();
+  persist();
+  renderSidebar();
+}
+
+function deleteClock(id){
+  const usage=clockUsageCount(id);
+  if(usage>0){ alert(`This clock is used in ${usage} daypart(s). Remove it from those first.`); return; }
+  if(!confirm('Delete this clock?')) return;
+  clocks=clocks.filter(c=>c.id!==id);
+  persist();
+  renderSidebar();
+  toast('Clock deleted');
+}
+
+// Mark a column as "unlinked" (edits detach it from its clock)
+function unlinkCol(colIdx){
+  scheduleColumns[colIdx]={clockId:null};
+}
+
+// ════════════════════════════════════════════════════════════════
+// RENDER SCHEDULE GRID
+// ════════════════════════════════════════════════════════════════
+function renderSchedule(){
+  const nCols=getNumCols(), nRows=getNumRows();
+  ensureGridSize();
+
+  const wrap=document.getElementById('clockWrap');
+  wrap.innerHTML='';
+  const tbl=document.createElement('table');
+  tbl.className='clock';
+
+  // Header row
+  const thead=document.createElement('thead');
+  const hrow=document.createElement('tr');
+  const th0=document.createElement('th'); th0.className='slot-h'; th0.textContent='#'; hrow.appendChild(th0);
+  for(let c=0;c<nCols;c++){
+    const th=document.createElement('th');
+    th.className='daypart'+(selectedCol===c?' selected':'');
+    th.dataset.col=c;
+    const t=document.createElement('span'); t.className='dp-time'; t.textContent=timeLabel(c);
+    const n=document.createElement('span'); n.className='dp-name';
+    n.textContent=colClockName(c)||'—';
+    th.appendChild(t); th.appendChild(n);
+    th.addEventListener('click',()=>selectCol(c));
+    hrow.appendChild(th);
+  }
+  thead.appendChild(hrow);
+  tbl.appendChild(thead);
+
+  // Body
+  const tbody=document.createElement('tbody');
+  for(let r=0;r<nRows;r++){
+    const tr=document.createElement('tr');
+    const sn=document.createElement('td'); sn.className='slot-n'; sn.textContent=r+1; tr.appendChild(sn);
+    for(let c=0;c<nCols;c++){
+      const td=document.createElement('td'); td.className='cell';
+      const inp=document.createElement('input');
+      inp.type='text'; inp.maxLength=4;
+      inp.value=grid[r]?.[c]||'';
+      inp.dataset.r=r; inp.dataset.c=c;
+      applyCell(td,inp,grid[r]?.[c]||'');
+      inp.addEventListener('input',function(){
+        const v=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+        this.value=v;
+        const ri=parseInt(this.dataset.r),ci=parseInt(this.dataset.c);
+        grid[ri][ci]=v;
+        applyCell(this.parentElement,this,v);
+        unlinkCol(ci);
+        updateColName(ci);
+        recalc();
+        persist();
+      });
+      inp.addEventListener('keydown',function(e){
+        if(['ArrowRight','ArrowLeft','ArrowUp','ArrowDown'].includes(e.key)){
+          e.preventDefault();
+          const ri=parseInt(this.dataset.r),ci=parseInt(this.dataset.c);
+          const [nr,nc]={ArrowRight:[ri,Math.min(nCols-1,ci+1)],ArrowLeft:[ri,Math.max(0,ci-1)],ArrowDown:[Math.min(nRows-1,ri+1),ci],ArrowUp:[Math.max(0,ri-1),ci]}[e.key];
+          document.querySelector(`input[data-r="${nr}"][data-c="${nc}"]`)?.focus();
+        }
+      });
+      td.appendChild(inp); tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  tbl.appendChild(tbody);
+
+  // Save-clock tfoot row — inside the table so column widths align perfectly
+  const tfoot=document.createElement('tfoot');
+  const frow=document.createElement('tr');
+  const fslot=document.createElement('td'); fslot.className='slot-n-foot'; frow.appendChild(fslot);
+  for(let c=0;c<nCols;c++){
+    const ftd=document.createElement('td');
+    ftd.className='save-btn-cell'+(selectedCol===c?' selected':'');
+    ftd.dataset.col=c;
+    const fbtn=document.createElement('button');
+    fbtn.textContent='↑ save'; fbtn.title='Save this hour as a clock';
+    fbtn.addEventListener('click',()=>{ selectCol(c); showSavePrompt(c); });
+    ftd.appendChild(fbtn); frow.appendChild(ftd);
+  }
+  tfoot.appendChild(frow);
+  tbl.appendChild(tfoot);
+  wrap.appendChild(tbl);
+
+  recalc();
+}
+
+function updateColName(colIdx){
+  const th=document.querySelector(`th.daypart[data-col="${colIdx}"] .dp-name`);
+  if(th) th.textContent=colClockName(colIdx)||'—';
+  // also update tfoot cell selection state
+  document.querySelectorAll('td.save-btn-cell').forEach(td=>{
+    td.classList.toggle('selected', parseInt(td.dataset.col)===selectedCol);
+  });
+}
+
+function selectCol(colIdx){
+  selectedCol=colIdx;
+  document.querySelectorAll('th.daypart').forEach(th=>{
+    th.classList.toggle('selected', parseInt(th.dataset.col)===colIdx);
+  });
+  document.querySelectorAll('td.save-btn-cell').forEach(td=>{
+    td.classList.toggle('selected', parseInt(td.dataset.col)===colIdx);
+  });
+  renderSidebar();
+}
+
+// ════════════════════════════════════════════════════════════════
+// SIDEBAR
+// ════════════════════════════════════════════════════════════════
+let sidebarSavePromptCol = null;
+
+function renderSidebar(){
+  const title=document.getElementById('sidebarTitle');
+  const body=document.getElementById('sidebarBody');
+  const footer=document.getElementById('sidebarFooter');
+
+  if(selectedCol===null){
+    title.textContent='Clocks';
+    body.innerHTML='<p style="font-size:11px;color:var(--muted);line-height:1.6">Click a daypart column header to assign or swap a clock, or use ↑ save below a column to save that hour as a new clock.</p>';
+    renderClockLibrary(body, null);
+    footer.innerHTML='';
+    renderScheduleSummary(footer);
+    return;
+  }
+
+  const colLabel=timeLabel(selectedCol);
+  const assignedName=colClockName(selectedCol);
+  title.textContent=`${colLabel} — ${assignedName||'Unassigned'}`;
+
+  body.innerHTML='';
+
+  // Save prompt if triggered
+  if(sidebarSavePromptCol===selectedCol){
+    renderSavePromptUI(body, selectedCol);
+    return;
+  }
+
+  // Clock picker
+  const pickLabel=document.createElement('p');
+  pickLabel.className='sb-mode-label';
+  pickLabel.innerHTML=`Assign a saved clock to <strong>${colLabel}</strong>:`;
+  body.appendChild(pickLabel);
+
+  renderClockLibrary(body, selectedCol);
+  footer.innerHTML='';
+  renderScheduleSummary(footer);
+}
+
+function renderClockLibrary(container, activeCol){
+  const section=document.createElement('div');
+  section.className='sb-section';
+
+  if(clocks.length===0){
+    const empty=document.createElement('p');
+    empty.style.cssText='font-size:11px;color:var(--muted);margin-bottom:8px';
+    empty.textContent='No saved clocks yet. Use ↑ save below any column to create one.';
+    section.appendChild(empty);
+  }
+
+  clocks.forEach(ck=>{
+    const usage=clockUsageCount(ck.id);
+    const isActive=activeCol!==null && scheduleColumns[activeCol]?.clockId===ck.id;
+    const item=document.createElement('div');
+    item.className='clock-list-item'+(isActive?' active':'');
+
+    const countBadge=document.createElement('span');
+    countBadge.className='cli-count'; countBadge.textContent=usage;
+
+    const name=document.createElement('span');
+    name.className='cli-name'; name.textContent=ck.name;
+
+    const meta=document.createElement('span');
+    meta.className='cli-meta'; meta.textContent=`${ck.slots?.filter(Boolean).length||0} slots`;
+
+    item.appendChild(countBadge); item.appendChild(name); item.appendChild(meta);
+
+    if(usage===0){
+      const del=document.createElement('button');
+      del.className='cli-del'; del.textContent='🗑';
+      del.title='Delete clock';
+      del.addEventListener('click',e=>{e.stopPropagation();deleteClock(ck.id);});
+      item.appendChild(del);
+    }
+
+    if(activeCol!==null){
+      item.style.cursor='pointer';
+      item.addEventListener('click',()=>{
+        applyClockToCol(ck.id, activeCol);
+        toast(`Applied "${ck.name}" to ${timeLabel(activeCol)}`);
+      });
+    }
+
+    section.appendChild(item);
+  });
+
+  container.appendChild(section);
+}
+
+function showSavePrompt(colIdx){
+  sidebarSavePromptCol=colIdx;
+  renderSidebar();
+}
+
+function renderSavePromptUI(container, colIdx){
+  const colLabel=timeLabel(colIdx);
+  const assignedId=scheduleColumns[colIdx]?.clockId||null;
+  const assignedClock=assignedId ? clocks.find(c=>c.id===assignedId) : null;
+
+  const div=document.createElement('div');
+  div.innerHTML=`<p class="sb-mode-label">Save <strong>${colLabel}</strong> as a clock:</p>`;
+
+  // Overwrite option
+  if(assignedClock){
+    const ow=document.createElement('div');
+    ow.className='save-prompt';
+    ow.innerHTML=`<h4>Overwrite existing</h4>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:8px">"${assignedClock.name}"</p>`;
+    const owBtn=document.createElement('button');
+    owBtn.className='btn primary';
+    owBtn.textContent=`Overwrite "${assignedClock.name}"`;
+    owBtn.addEventListener('click',()=>{
+      saveClockFromCol(colIdx, assignedClock.name, assignedClock.id);
+      sidebarSavePromptCol=null;
+      toast(`Updated "${assignedClock.name}"`);
+      renderSidebar();
+    });
+    ow.appendChild(owBtn);
+    div.appendChild(ow);
+    div.appendChild(document.createElement('div')).style.height='10px';
+  }
+
+  // Save as new
+  const sn=document.createElement('div');
+  sn.className='save-prompt';
+  sn.innerHTML=`<h4>Save as new clock</h4>`;
+  const nameRow=document.createElement('div'); nameRow.className='sp-row';
+  const nameInp=document.createElement('input'); nameInp.type='text';
+  nameInp.placeholder=`${colLabel} clock`;
+  nameInp.value=assignedClock?`${assignedClock.name} (copy)`:'';
+  const saveBtn=document.createElement('button'); saveBtn.className='btn yellow'; saveBtn.textContent='Save';
+  saveBtn.addEventListener('click',()=>{
+    const nm=nameInp.value.trim()||`${colLabel} clock`;
+    saveClockFromCol(colIdx, nm, null);
+    sidebarSavePromptCol=null;
+    toast(`Saved "${nm}"`);
+    renderSidebar();
+  });
+  nameInp.addEventListener('keydown',e=>{ if(e.key==='Enter') saveBtn.click(); });
+  nameRow.appendChild(nameInp); nameRow.appendChild(saveBtn);
+  sn.appendChild(nameRow);
+  div.appendChild(sn);
+
+  // Cancel
+  const cancelBtn=document.createElement('button');
+  cancelBtn.className='btn sm'; cancelBtn.textContent='Cancel'; cancelBtn.style.marginTop='8px';
+  cancelBtn.addEventListener('click',()=>{ sidebarSavePromptCol=null; renderSidebar(); });
+  div.appendChild(cancelBtn);
+
+  container.appendChild(div);
+}
+
+function renderScheduleSummary(container){
+  // Mini legend
+  const seen=new Set();
+  const cats=[];
+  grid.forEach(row=>row.forEach(v=>{ if(v&&!seen.has(v)){seen.add(v);cats.push(v);} }));
+  if(cats.length===0) return;
+  const lg=document.createElement('div');
+  lg.className='sb-section';
+  lg.innerHTML='<div class="sb-section-title">Legend</div>';
+  const grid2=document.createElement('div'); grid2.className='legend-grid';
+  cats.sort().forEach(k=>{
+    const c=catC(k);
+    const it=document.createElement('div'); it.className='legend-item';
+    it.innerHTML=`<span class="legend-swatch" style="background:${c?c.bg:'#ddd'}"></span><span style="font-size:10px">${k}</span>`;
+    grid2.appendChild(it);
+  });
+  lg.appendChild(grid2);
+  container.appendChild(lg);
+}
+
+// ════════════════════════════════════════════════════════════════
+// TOTALS
+// ════════════════════════════════════════════════════════════════
+function recalc(){
+  const nCols=getNumCols(), nRows=getNumRows();
+  const daysWk=parseFloat(document.getElementById('daysWk').value)||5;
+  const avgLen=parseFloat(document.getElementById('avgLen').value)||3.5;
+
+  const counts={};
+  for(let r=0;r<nRows;r++) for(let c=0;c<nCols;c++){
+    const v=(grid[r]?.[c]||'').toUpperCase();
+    if(v) counts[v]=(counts[v]||0)+1;
+  }
+
+  const cats=Object.keys(counts).sort();
+  cats.forEach(k=>{ if(!(k in spinsPerTrack)) spinsPerTrack[k]=1; });
+
+  const tbody=document.getElementById('totalsBody');
+  const tfoot=document.getElementById('totalsFoot');
+  tbody.innerHTML='';
+
+  let totSpins=0,totTracks=0,totLibMin=0;
+  cats.forEach(k=>{
+    const spDay=counts[k], spWk=spDay*daysWk;
+    const spt=spinsPerTrack[k]||1;
+    const tracks=Math.ceil(spWk/spt);
+    const libHrs=(tracks*avgLen/60).toFixed(1);
+    totSpins+=spDay; totTracks+=tracks; totLibMin+=tracks*avgLen;
+    const col=catC(k);
+    const bg=col?col.bg:'#ddd', fg=col?col.fg:'#333';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><span class="cat-pill" style="background:${bg};color:${fg}">${k}</span></td>
+      <td class="r">${spDay}</td><td class="r">${spWk}</td>
+      <td class="r"><input class="spt" type="number" min="1" max="99" step="1" value="${spt}" data-cat="${k}"></td>
+      <td class="r" style="font-weight:600">${tracks.toLocaleString()}</td>
+      <td class="r">${libHrs} hr</td>`;
+    tbody.appendChild(tr);
+    tr.querySelector('.spt').addEventListener('change',function(){
+      spinsPerTrack[this.dataset.cat]=Math.max(1,parseInt(this.value)||1);
+      recalc(); persist();
+    });
+  });
+
+  const totLibHrs=(totLibMin/60).toFixed(1);
+  tfoot.innerHTML=`<tr class="foot-row">
+    <td>TOTAL</td><td class="r">${totSpins}</td><td class="r">${totSpins*daysWk}</td>
+    <td class="r">—</td><td class="r">${totTracks.toLocaleString()}</td>
+    <td class="r">${totLibHrs} hr</td></tr>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// DIMS CHANGE
+// ════════════════════════════════════════════════════════════════
+function onDimsChange(){
+  ensureGridSize();
+  selectedCol=null;
+  sidebarSavePromptCol=null;
+  renderSchedule();
+  renderSidebar();
+  persist();
+}
+
+// ════════════════════════════════════════════════════════════════
+// SPECIALTY — grid with SP1/SP2/SP3 pools, own clock library
+// ════════════════════════════════════════════════════════════════
+const SP_POOLS = [
+  {code:'SP1', bg:'#2E7D32', fg:'#fff', label:'SP-1 (heavy)'},
+  {code:'SP2', bg:'#66BB6A', fg:'#fff', label:'SP-2 (medium)'},
+  {code:'SP3', bg:'#A5D6A7', fg:'#2E7D32', label:'SP-3 (light)'},
+];
+const SP_OPTIONS = ['', ...SP_POOLS.map(p=>p.code)];
+
+let spClocks = [];           // specialty clock library
+let spScheduleColumns = [];  // [{clockId|null}] per block column
+let spGrid = [];             // spGrid[row][col] = 'SP1'|'SP2'|'SP3'|''
+let spSpt = {SP1:2, SP2:1, SP3:1}; // spins/track/week per pool
+let spSelectedCol = null;
+let spSavePromptCol = null;
+
+function getSpNumCols(){ return Math.max(1,parseInt(document.getElementById('spNumCols').value)||4); }
+function getSpNumRows(){ return Math.max(1,parseInt(document.getElementById('spNumRows').value)||12); }
+
+function ensureSpGridSize(){
+  const nR=getSpNumRows(), nC=getSpNumCols();
+  while(spGrid.length<nR) spGrid.push(Array(nC).fill(''));
+  spGrid.forEach(r=>{ while(r.length<nC) r.push(''); });
+  while(spScheduleColumns.length<nC) spScheduleColumns.push({clockId:null});
+}
+
+function spColClockName(c){
+  const sc=spScheduleColumns[c]; if(!sc||!sc.clockId) return null;
+  const ck=spClocks.find(k=>k.id===sc.clockId); return ck?ck.name:null;
+}
+
+function spClockUsageCount(id){
+  return spScheduleColumns.slice(0,getSpNumCols()).filter(sc=>sc.clockId===id).length;
+}
+
+function renderSpSchedule(){
+  const nCols=getSpNumCols(), nRows=getSpNumRows();
+  ensureSpGridSize();
+  const wrap=document.getElementById('spBlocksWrap');
+  wrap.innerHTML='';
+  const tbl=document.createElement('table'); tbl.className='sp-table';
+
+  // Header
+  const thead=document.createElement('thead');
+  const hrow=document.createElement('tr');
+  const th0=document.createElement('th'); th0.className='sp-slot-h'; th0.textContent='#'; hrow.appendChild(th0);
+  for(let c=0;c<nCols;c++){
+    const th=document.createElement('th');
+    th.className='sp-col'+(spSelectedCol===c?' selected':'');
+    th.dataset.col=c;
+    const t=document.createElement('span'); t.className='sp-col-time'; t.textContent=`Block ${c+1}`;
+    const n=document.createElement('span'); n.className='sp-col-name'; n.textContent=spColClockName(c)||'—';
+    th.appendChild(t); th.appendChild(n);
+    th.addEventListener('click',()=>spSelectCol(c));
+    hrow.appendChild(th);
+  }
+  thead.appendChild(hrow); tbl.appendChild(thead);
+
+  // Body
+  const tbody=document.createElement('tbody');
+  for(let r=0;r<nRows;r++){
+    const tr=document.createElement('tr');
+    const sn=document.createElement('td'); sn.className='sp-slot-n'; sn.textContent=r+1; tr.appendChild(sn);
+    for(let c=0;c<nCols;c++){
+      const td=document.createElement('td'); td.className='sp-cell';
+      const sel=document.createElement('select');
+      SP_OPTIONS.forEach(opt=>{
+        const o=document.createElement('option'); o.value=opt;
+        o.textContent=opt||'—'; sel.appendChild(o);
+      });
+      sel.value=spGrid[r]?.[c]||'';
+      applySpCell(td,sel,spGrid[r]?.[c]||'');
+      sel.dataset.r=r; sel.dataset.c=c;
+      sel.addEventListener('change',function(){
+        const v=this.value, ri=parseInt(this.dataset.r), ci=parseInt(this.dataset.c);
+        spGrid[ri][ci]=v;
+        applySpCell(this.parentElement,this,v);
+        spUnlinkCol(ci);
+        spUpdateColName(ci);
+        recalcSp(); persistSp();
+      });
+      td.appendChild(sel); tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  tbl.appendChild(tbody);
+
+  // Save tfoot
+  const tfoot=document.createElement('tfoot');
+  const frow=document.createElement('tr');
+  const fslot=document.createElement('td'); fslot.style.cssText='background:#e0e0e0;border:1px solid var(--border-light)'; frow.appendChild(fslot);
+  for(let c=0;c<nCols;c++){
+    const ftd=document.createElement('td');
+    ftd.className='sp-save-cell'+(spSelectedCol===c?' selected':'');
+    ftd.dataset.col=c;
+    const fbtn=document.createElement('button'); fbtn.textContent='↑ save';
+    fbtn.addEventListener('click',()=>{ spSelectCol(c); spShowSavePrompt(c); });
+    ftd.appendChild(fbtn); frow.appendChild(ftd);
+  }
+  tfoot.appendChild(frow); tbl.appendChild(tfoot);
+  wrap.appendChild(tbl);
+  recalcSp();
+}
+
+function applySpCell(td,sel,code){
+  const pool=SP_POOLS.find(p=>p.code===code);
+  td.style.background=pool?pool.bg:'#fff';
+  sel.style.color=pool?pool.fg:'#555';
+}
+
+function spUnlinkCol(c){ spScheduleColumns[c]={clockId:null}; }
+
+function spUpdateColName(c){
+  const th=document.querySelector(`th.sp-col[data-col="${c}"] .sp-col-name`);
+  if(th) th.textContent=spColClockName(c)||'—';
+  document.querySelectorAll('td.sp-save-cell').forEach(td=>{
+    td.classList.toggle('selected',parseInt(td.dataset.col)===spSelectedCol);
+  });
+}
+
+function spSelectCol(c){
+  spSelectedCol=c;
+  document.querySelectorAll('th.sp-col').forEach(th=>th.classList.toggle('selected',parseInt(th.dataset.col)===c));
+  document.querySelectorAll('td.sp-save-cell').forEach(td=>td.classList.toggle('selected',parseInt(td.dataset.col)===c));
+  renderSpSidebar();
+}
+
+function applySpClockToCol(clockId,c){
+  const ck=spClocks.find(k=>k.id===clockId); if(!ck) return;
+  const nR=getSpNumRows();
+  ck.slots.forEach((v,r)=>{ if(r<nR) spGrid[r][c]=v; });
+  spScheduleColumns[c]={clockId};
+  for(let r=0;r<nR;r++){
+    const sel=document.querySelector(`select[data-r="${r}"][data-c="${c}"]`);
+    if(sel){ sel.value=spGrid[r][c]; applySpCell(sel.parentElement,sel,spGrid[r][c]); }
+  }
+  spUpdateColName(c); recalcSp(); persistSp();
+}
+
+function saveSpClockFromCol(c,name,overwriteId){
+  const nR=getSpNumRows();
+  const slots=Array.from({length:nR},(_,r)=>spGrid[r]?.[c]||'');
+  if(overwriteId){
+    const ck=spClocks.find(k=>k.id===overwriteId);
+    if(ck){ck.name=name;ck.slots=slots;}
+  } else {
+    const id='sp_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    spClocks.push({id,name,slots});
+    spScheduleColumns[c]={clockId:id};
+  }
+  persistSp(); renderSpSchedule(); renderSpSidebar();
+}
+
+function deleteSpClock(id){
+  if(spClockUsageCount(id)>0){alert('Remove from blocks first.');return;}
+  if(!confirm('Delete this specialty clock?')) return;
+  spClocks=spClocks.filter(k=>k.id!==id);
+  persistSp(); renderSpSidebar(); toast('Deleted');
+}
+
+function spShowSavePrompt(c){ spSavePromptCol=c; renderSpSidebar(); }
+
+function renderSpSidebar(){
+  // Only active when on specialty tab — share sidebar with main
+  if(!document.getElementById('tab-specialty').classList.contains('active')) return;
+  const title=document.getElementById('sidebarTitle');
+  const body=document.getElementById('sidebarBody');
+  const footer=document.getElementById('sidebarFooter');
+
+  if(spSelectedCol===null){
+    title.textContent='Specialty Clocks';
+    body.innerHTML='<p style="font-size:11px;color:var(--muted);line-height:1.6">Click a block column to assign a specialty clock, or use ↑ save to save a block.</p>';
+    renderSpClockList(body,null);
+    footer.innerHTML='';
+    return;
+  }
+
+  const colLabel=`Block ${spSelectedCol+1}`;
+  const assignedName=spColClockName(spSelectedCol);
+  title.textContent=`${colLabel} — ${assignedName||'Unassigned'}`;
+  body.innerHTML='';
+
+  if(spSavePromptCol===spSelectedCol){
+    renderSpSavePromptUI(body,spSelectedCol); footer.innerHTML=''; return;
+  }
+
+  const lbl=document.createElement('p'); lbl.className='sb-mode-label';
+  lbl.innerHTML=`Assign a specialty clock to <strong>${colLabel}</strong>:`;
+  body.appendChild(lbl);
+  renderSpClockList(body,spSelectedCol);
+  footer.innerHTML='';
+}
+
+function renderSpClockList(container,activeCol){
+  const section=document.createElement('div'); section.className='sb-section';
+  if(spClocks.length===0){
+    const p=document.createElement('p'); p.style.cssText='font-size:11px;color:var(--muted);margin-bottom:8px';
+    p.textContent='No specialty clocks yet. Use ↑ save below a block column.';
+    section.appendChild(p);
+  }
+  spClocks.forEach(ck=>{
+    const usage=spClockUsageCount(ck.id);
+    const isActive=activeCol!==null&&spScheduleColumns[activeCol]?.clockId===ck.id;
+    const item=document.createElement('div'); item.className='clock-list-item'+(isActive?' active':'');
+    const cnt=document.createElement('span'); cnt.className='cli-count'; cnt.textContent=usage;
+    const nm=document.createElement('span'); nm.className='cli-name'; nm.textContent=ck.name;
+    const mt=document.createElement('span'); mt.className='cli-meta'; mt.textContent=`${ck.slots?.filter(Boolean).length||0} slots`;
+    item.appendChild(cnt); item.appendChild(nm); item.appendChild(mt);
+    if(usage===0){
+      const del=document.createElement('button'); del.className='cli-del'; del.textContent='🗑';
+      del.addEventListener('click',e=>{e.stopPropagation();deleteSpClock(ck.id);});
+      item.appendChild(del);
+    }
+    if(activeCol!==null){
+      item.style.cursor='pointer';
+      item.addEventListener('click',()=>{applySpClockToCol(ck.id,activeCol);toast(`Applied "${ck.name}"`);renderSpSidebar();});
+    }
+    section.appendChild(item);
+  });
+  container.appendChild(section);
+}
+
+function renderSpSavePromptUI(container,c){
+  const colLabel=`Block ${c+1}`;
+  const assignedId=spScheduleColumns[c]?.clockId||null;
+  const assignedClock=assignedId?spClocks.find(k=>k.id===assignedId):null;
+  const div=document.createElement('div');
+  div.innerHTML=`<p class="sb-mode-label">Save <strong>${colLabel}</strong> as a specialty clock:</p>`;
+  if(assignedClock){
+    const ow=document.createElement('div'); ow.className='save-prompt';
+    ow.innerHTML=`<h4>Overwrite existing</h4><p style="font-size:11px;color:var(--muted);margin-bottom:8px">"${assignedClock.name}"</p>`;
+    const owBtn=document.createElement('button'); owBtn.className='btn primary'; owBtn.textContent=`Overwrite "${assignedClock.name}"`;
+    owBtn.addEventListener('click',()=>{saveSpClockFromCol(c,assignedClock.name,assignedClock.id);spSavePromptCol=null;toast(`Updated "${assignedClock.name}"`);renderSpSidebar();});
+    ow.appendChild(owBtn); div.appendChild(ow);
+  }
+  const sn=document.createElement('div'); sn.className='save-prompt';
+  sn.innerHTML=`<h4>Save as new</h4>`;
+  const nr=document.createElement('div'); nr.className='sp-row';
+  const ni=document.createElement('input'); ni.type='text'; ni.placeholder=`${colLabel} clock`;
+  ni.value=assignedClock?`${assignedClock.name} (copy)`:'';
+  const sb=document.createElement('button'); sb.className='btn yellow'; sb.textContent='Save';
+  sb.addEventListener('click',()=>{const nm=ni.value.trim()||`${colLabel} clock`;saveSpClockFromCol(c,nm,null);spSavePromptCol=null;toast(`Saved "${nm}"`);renderSpSidebar();});
+  ni.addEventListener('keydown',e=>{if(e.key==='Enter')sb.click();});
+  nr.appendChild(ni); nr.appendChild(sb); sn.appendChild(nr); div.appendChild(sn);
+  const cancel=document.createElement('button'); cancel.className='btn sm'; cancel.textContent='Cancel'; cancel.style.marginTop='8px';
+  cancel.addEventListener('click',()=>{spSavePromptCol=null;renderSpSidebar();});
+  div.appendChild(cancel); container.appendChild(div);
+}
+
+function recalcSp(){
+  const nCols=getSpNumCols(), nRows=getSpNumRows();
+  const hrsBlock=parseFloat(document.getElementById('spHrsBlock').value)||3;
+  const blocksWk=parseFloat(document.getElementById('spBlocksWk').value)||2;
+  const daysWk=parseFloat(document.getElementById('spDaysWk').value)||5;
+  const avgLen=parseFloat(document.getElementById('spAvgLen').value)||3.5;
+
+  // Count per-pool across all blocks in one block instance (single block template)
+  // then scale by blocks/week
+  const poolCounts={SP1:0,SP2:0,SP3:0};
+  for(let r=0;r<nRows;r++) for(let c=0;c<nCols;c++){
+    const v=(spGrid[r]?.[c]||'').toUpperCase();
+    if(poolCounts[v]!==undefined) poolCounts[v]++;
+  }
+
+  // Each block plays hrsBlock * 60 / avgLen songs; poolCounts is per the grid
+  // The grid shows one block template; nCols = how many distinct block variants shown
+  // Total spins/wk per pool = (poolCounts[pool] / nCols) * blocksWk * daysWk
+  // (average per block × blocks per week × days per week)
+  const spinsPerBlock = {};
+  SP_POOLS.forEach(p=>{
+    spinsPerBlock[p.code] = nCols > 0 ? poolCounts[p.code] / nCols : 0;
+  });
+
+  const tbody=document.getElementById('spTotalsBody');
+  const tfoot=document.getElementById('spTotalsFoot');
+  tbody.innerHTML='';
+  let totTr=0,totLib=0;
+
+  SP_POOLS.forEach(p=>{
+    const spBlock=Math.round(spinsPerBlock[p.code]);
+    const spWk=Math.round(spinsPerBlock[p.code]*blocksWk*daysWk);
+    const spt=spSpt[p.code]||1;
+    const tracks=spt>0?Math.ceil(spWk/spt):0;
+    const libHrs=(tracks*avgLen/60).toFixed(1);
+    totTr+=tracks; totLib+=tracks*avgLen;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><span class="cat-pill" style="background:${p.bg};color:${p.fg}">${p.code}</span></td>
+      <td class="r">${spBlock}</td>
+      <td class="r">${spWk}</td>
+      <td class="r"><input class="spt" type="number" min="1" max="99" value="${spt}" data-pool="${p.code}"></td>
+      <td class="r" style="font-weight:600">${tracks.toLocaleString()}</td>
+      <td class="r">${libHrs} hr</td>`;
+    tbody.appendChild(tr);
+    tr.querySelector('.spt').addEventListener('change',function(){
+      spSpt[this.dataset.pool]=Math.max(1,parseInt(this.value)||1);
+      recalcSp(); persistSp();
+    });
+  });
+
+  const totLibHrs=(totLib/60).toFixed(1);
+  tfoot.innerHTML=`<tr class="foot-row">
+    <td>TOTAL</td><td class="r">—</td><td class="r">—</td>
+    <td class="r">—</td><td class="r">${totTr.toLocaleString()}</td>
+    <td class="r">${totLibHrs} hr</td></tr>`;
+}
+
+function onSpDimsChange(){
+  ensureSpGridSize(); spSelectedCol=null; spSavePromptCol=null;
+  renderSpSchedule(); renderSpSidebar(); persistSp();
+}
+
+function persistSp(){
+  const d=JSON.parse(localStorage.getItem('kteq_v3')||'{}');
+  d.spClocks=spClocks; d.spGrid=spGrid;
+  d.spScheduleColumns=spScheduleColumns; d.spSpt=spSpt;
+  d.spSettings={
+    spNumCols:document.getElementById('spNumCols').value,
+    spNumRows:document.getElementById('spNumRows').value,
+    spHrsBlock:document.getElementById('spHrsBlock').value,
+    spBlocksWk:document.getElementById('spBlocksWk').value,
+    spDaysWk:document.getElementById('spDaysWk').value,
+    spAvgLen:document.getElementById('spAvgLen').value,
+  };
+  localStorage.setItem('kteq_v3',JSON.stringify(d));
+}
+
+// ════════════════════════════════════════════════════════════════
+// EXPORT / IMPORT
+// ════════════════════════════════════════════════════════════════
+function exportJSON(){
+  const blob=new Blob([JSON.stringify({
+    version:'2.1',exported:new Date().toISOString(),
+    clocks,grid,scheduleColumns,spinsPerTrack,
+    spClocks,spGrid,spScheduleColumns,spSpt
+  },null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`kteq-schedule-${new Date().toISOString().slice(0,10)}.json`; a.click();
+  toast('Exported JSON');
+}
+
+function importJSON(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const d=JSON.parse(ev.target.result);
+      if(d.clocks) clocks=[...clocks,...d.clocks.filter(nc=>!clocks.find(ec=>ec.id===nc.id))];
+      if(d.grid) grid=d.grid;
+      if(d.scheduleColumns) scheduleColumns=d.scheduleColumns;
+      if(d.spinsPerTrack) spinsPerTrack={...spinsPerTrack,...d.spinsPerTrack};
+      if(d.spClocks) spClocks=[...spClocks,...d.spClocks.filter(nc=>!spClocks.find(ec=>ec.id===nc.id))];
+      if(d.spGrid) spGrid=d.spGrid;
+      if(d.spScheduleColumns) spScheduleColumns=d.spScheduleColumns;
+      if(d.spSpt) spSpt={...spSpt,...d.spSpt};
+      persist(); persistSp(); ensureGridSize(); ensureSpGridSize();
+      renderSchedule(); renderSidebar(); renderSpSchedule(); renderSpSidebar();
+      toast('Imported');
+    }catch(err){ alert('Invalid JSON'); }
+  };
+  reader.readAsText(file); e.target.value='';
+}
+
+// ════════════════════════════════════════════════════════════════
+// TABS / TOAST / INIT
+// ════════════════════════════════════════════════════════════════
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.textContent.toLowerCase().replace(' ','')===name));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
+  if(name==='specialty') renderSpSidebar();
+  else renderSidebar();
+}
+
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg;
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+buildStartHourSelect();
+initState();
+renderSchedule();
+renderSidebar();
+renderSpSchedule();
+</script>
+</body>
+</html>
